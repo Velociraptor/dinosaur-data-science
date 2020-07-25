@@ -1,0 +1,315 @@
+---
+title: "Gapminder"
+author: "Hannah Sarver"
+date: 2020-07-22
+output:
+  github_document:
+    toc: true
+---
+
+*Purpose*: Learning to do EDA well takes practice! In this challenge you'll further practice EDA by first completing a guided exploration, then by conducting your own investigation. This challenge will also give you a chance to use the wide variety of visual tools we've been learning.
+
+```{r setup}
+library(tidyverse)
+library(gapminder)
+library(grid)
+library(gridExtra)
+
+```
+
+*Background*: [Gapminder](https://www.gapminder.org/about-gapminder/) is an independent organization that seeks to educate people about the state of the world. They promote a "fact-based worldview" by focusing on data. The dataset we'll study in this challenge is from Gapminder.
+
+# Guided EDA
+<!-- -------------------------------------------------- -->
+
+First, we'll go through a round of *guided EDA*. Try to pay attention to the high-level process we're going through---after this guided round you'll be responsible for doing another cycle of EDA on your own!
+
+__q0__ Perform your "first checks" on the dataset. What variables are in this
+dataset?
+
+```{r q0-task}
+## TASK: Do your "first checks" here!
+summary(gapminder)
+```
+
+**Observations**:
+
+- Write the variable names here
+
+__q1__ Determine the most and least recent years in the `gapminder` dataset.
+
+```{r q1-task}
+## TASK: Find the largest and smallest values of `year` in `gapminder`
+year_max <- summarize(gapminder, max(year))
+year_min <- summarize(gapminder, min(year))
+```
+
+Use the following test to check your work.
+
+```{r q1-tests}
+## NOTE: No need to change this
+assertthat::assert_that(year_max %% 7 == 5)
+assertthat::assert_that(year_max %% 3 == 0)
+assertthat::assert_that(year_min %% 7 == 6)
+assertthat::assert_that(year_min %% 3 == 2)
+print("Nice!")
+```
+
+__q2__ Filter on years matching `year_min`, and make a plot of the GDE (...does this mean GDP?) per capita against continent. Choose an appropriate `geom_` to visualize the data. What observations can you make?
+
+You may encounter difficulties in visualizing these data; if so document your challenges and attempt to produce the most informative visual you can.
+
+```{r q2-task}
+## TASK: Create a visual of gdpPercap vs continent
+gapminder_cont_count <-
+  gapminder %>%
+  filter(as.integer(year) == as.integer(year_min)) %>%
+  group_by(continent) %>%
+  mutate(
+    cont_count = n(),
+  ) %>%
+  ungroup()
+
+oceania <-
+  gapminder %>%
+  filter(as.integer(year) == as.integer(year_min)) %>%
+  filter(continent == "Oceania")
+
+gapminder_cont_count %>%
+  filter(as.integer(year) == as.integer(year_min)) %>%
+  ggplot(mapping = aes(x = continent, y = gdpPercap, fill = continent)) +
+  geom_violin() +
+  geom_point(data = oceania) +
+  stat_summary(
+    fun.y = max,
+    mapping = aes(
+      x = as.numeric(continent) + 0.2,
+      label = cont_count
+    ),
+    geom = 'text'
+  ) +
+  ggtitle("1952 GDP Per Capita by Continent with Count of Countries in Each")
+```
+
+**Observations**:
+
+- Most continents show a wider base of lower-GDP-per-capita countries, with a tapering top of fewer richer countries.
+- Europe has a relatively narrower bases of fewer poorer countries, and Africa has a much wider base of many relatively poorer countries.
+- Asia has at least one very far outlier, and the Americas, Europe, and to an extent Africa also show tapering off towards their higher GDP per capita countr(ies).
+- Oceania has only two countries listed in 1952, and in this plot all we can really see is that the one with max GDP per capita has a value a little lower than Europe and Americas' max.
+- There are the most total countries in Africa, and as mentioned only very few in Oceania. The violin plot shows each shape with relative width within that continent, so it is useful for comparison of distribution but not as much for total number of countries across the continents.
+
+
+**Difficulties & Approaches**:
+
+- WTF is the deal with the filter function and why does it not treat the type information the same as the rest of R?
+- I found the violin plot fairly intuitive for visualizing the spread of GDP-per-capita across each continent, but wanted to understand the count of countries within each continent to be able to compare better, and spent way too long trying to get per-continent country counts to show up despite that obviously being an internal part of generating the plot.
+
+__q3__ You should have found at least three outliers in q2. Identify those outliers (figure out which countries they are).
+
+```{r q3-task}
+## TASK: Identify the outliers from q2
+gapminder %>%
+  filter(as.integer(year) == as.integer(year_min)) %>%
+  top_n(3, gdpPercap)
+```
+
+**Observations**:
+
+- The furthest outliers look likely to be Kuwait (by far) in Asia, Switzerland in Europe, and the US and Canada in the Americas
+
+__q4__ Create a plot similar to yours from q2 studying both `year_min` and `year_max`. Find a way to highlight the outliers from q3 on your plot. Compare the patterns between `year_min` and `year_max`.
+
+*Hint*: We've learned a lot of different ways to show multiple variables; think about using different aesthetics or facets.
+
+```{r q4-task}
+## TASK: Create a visual of gdpPercap vs continent year_min
+outliers <- gapminder %>%
+  filter((as.integer(year) == as.integer(year_min))
+         | (as.integer(year) == as.integer(year_max))) %>%
+  filter(
+    # Outlying countries repeated as strings cause I had trouble using the output from the top_n table above, and I wanted to show Norway since it overtakes Switzerland by 2007.
+    country == "Kuwait" |
+    country == "Switzerland" |
+    country == "Norway" |
+    country == "United States"
+  )
+
+oceania <-
+  gapminder %>%
+  filter((as.integer(year) == as.integer(year_min))
+         | (as.integer(year) == as.integer(year_max))) %>%
+  filter(continent == "Oceania")
+
+gapminder %>%
+  filter((as.integer(year) == as.integer(year_min))
+         | (as.integer(year) == as.integer(year_max))) %>%
+  ggplot(mapping = aes(x = continent, y = gdpPercap, fill = continent)) +
+  geom_violin() +
+  geom_point(data = oceania) +
+  geom_point(data = outliers, size = 1) +
+  geom_text(data = outliers, mapping = aes(label = country), vjust = -0.5) +
+  facet_wrap(~year)
+```
+
+**Observations**:
+
+- Daaaaaaamn Kuwait what is up (I mean, oil, but wow).
+- Mostly outliers stay outliers, although Kuwait came down a whole lot between 1952 and 2007.
+- Norway is winning in Europe as of 2007.
+- Europe moved up its lower base, implying there are few or no very poor countries.
+- Africa has had many countries move up, but not as much (in terms of absolute delta in GDP per capita) as the highest countries among the other continents.
+
+
+# Your Own EDA
+<!-- -------------------------------------------------- -->
+
+Now it's your turn! We just went through guided EDA considering the GDP per capita at two time points. You can continue looking at outliers, consider different years, repeat the exercise with `lifeExp`, consider the relationship between variables, or something else entirely.
+
+__q5__ Create *at least* three new figures below. With each figure, try to pose new questions about the data.
+
+Overall Question: How does GDP per capita impact life expectancy, especially over time?
+
+First Exploration: How has life expectancy varied across the time span in the dataset? Within any year, is there any very obvious relationship between life expectancy and GDP per capita?
+
+```{r q5-task1}
+gapminder_avg_gdp <-
+  gapminder %>%
+  filter(country != "Kuwait") %>% # Remove outlier to improve visual clarity on gdpPercap
+  group_by(year) %>%
+  mutate(
+    year_median_gdppc = median(gdpPercap),
+  ) %>%
+  ungroup()
+
+outliers <- gapminder %>%
+  filter(
+    (year == 1992 & country == "Rwanda") |
+    (year == 1997 & country == "Rwanda") |
+    (year == 1977 & country == "Cambodia") |
+    (year == 2007 & country == "Swaziland")
+  )
+
+gapminder_avg_gdp %>%
+  mutate(scaledGdpPercap = gdpPercap / year_median_gdppc) %>%
+  ggplot(aes(x = year, y = lifeExp)) +
+  geom_point(aes(color = scaledGdpPercap)) +
+  geom_smooth() +
+  geom_text(data = outliers, mapping = aes(label = country), vjust = 1.4, hjust = 0.75) +
+  ggtitle("Yearly life expectancy with GDP per cap scaled by year's median minus Kuwait")
+```
+
+**Observations**:
+
+- Life expectancy has risen over time (as we might expect from medical and technological advances), although it appears that the curve has declined in its rate of rise from 1987 or so.
+- If we look at the very bottom of each year for countries with the lowest life expectancy, there is some rise in the lowest values from 1952 to 1987, but then not much change from then on. Meanwhile at the very top of each year, there is a steady rise in the highest life expectancies over time.
+- There are a few extreme outliers at the low end, presumably indicative of specific events (ie civil war, genocide) in those countries.
+- From this visualization, what we can see in terms of how life expectancy varies with GDP per capita is that there tend to be more countries with higher GDP per capita with the highest life expectancies. I scaled the GDP per cap by the median value each year so that we can still see some relationship in the earlier years (and not just all dark points since there are higher GDP per cap values in the range over time).
+- There do seem to be a few countries in the middle of the life expectancy range in some years that have very high GDP per capita.
+
+Next Exploration: How does life expectancy vary with GDP?
+
+```{r q5-task2}
+gapminder %>%
+  filter(as.integer(year) >= as.integer(year_max) - 25) %>%
+  ggplot(aes(x = gdpPercap, y = lifeExp)) +
+  geom_point() +
+  geom_smooth() +
+  facet_wrap(~ year) +
+  ggtitle("Life Expectancy against GDP per Capita 1982-2007")
+```
+
+**Observations**:
+
+- There is a fairly consistently shaped curve where life expectancy rises quickly with increasing GDP per capita for the early range, then levels off and rises only very slowly with increasing GDP per capita.
+- We see a few outliers with much lower life expectancy than other countries with similar GDP per capita - might guess these are likely to be countries with specific life-threatening conflicts or disasters in those years.
+- Year over year, the curve looks about the same but we can see the richer end getting richer (without that much gain in life expectancy) and the poorest set of countries not gaining much wealth or very much gain in life expectancy, generally.
+
+Next Exploration: How do life expectancy and GDP per capita vary over time in the countries with the highest and lowest GDP per cap values? We'll look at the highest and lowest from 2007 over time (would be interesting to look at the highest/lowest from other years and see how that changes over time too, maybe later).
+
+```{r q5-task3}
+# highest_gdppc <- gapminder %>%
+#   filter(as.integer(year) == as.integer(year_max)) %>%
+#   top_n(5, gdpPercap) %>%
+#   select(country)
+# 
+# lowest_gdppc <- gapminder %>%
+#   filter(as.integer(year) == as.integer(year_max)) %>%
+#   top_n(-5, gdpPercap) %>%
+#   select(country)
+
+# Could not figure out how to test group membership in the table data type so repeated manually as vectors here to be able to filter... probably a better way to do that
+
+highest_gdppc <- c("Ireland","Kuwait","Norway","Singapore","United States")
+lowest_gdppc <- c("Burundi","Congo, Dem. Rep.","Guinea-Bissau","Liberia","Zimbabwe")
+highest_gdppc_3 <- c("Kuwait","Norway","Singapore")
+lowest_gdppc_3 <- c("Burundi","Congo, Dem. Rep.","Liberia")
+
+# TODO: Add titles, move color legends below to give more graph space...
+# Ended up doing this "offline" for the presentation, so leaving it all a bit squished here
+
+plot1 <- gapminder %>%
+  filter(country %in% highest_gdppc) %>%
+  ggplot(mapping = aes(group = country, color = country)) +
+  geom_line(mapping = aes(year, gdpPercap)) #+
+  #ggtitle("GDP per Capita, Life Expectancy over time for Richest 5 Countries") +
+  #theme(legend.position="none")
+
+plot2 <- gapminder %>%
+  filter(country %in% highest_gdppc) %>%
+  ggplot(mapping = aes(group = country, color = country)) +
+  geom_line(mapping = aes(year, lifeExp)) #+
+  #theme(legend.position="none")
+
+plot3 <- gapminder %>%
+  filter(country %in% lowest_gdppc) %>%
+  ggplot(mapping = aes(group = country, color = country)) +
+  geom_line(mapping = aes(year, gdpPercap)) #+
+  #theme(legend.position="none")
+  #ggtitle("GDP per Capita, Life Expectancy over time for Poorest 5 Countries")
+
+plot4 <- gapminder %>%
+  filter(country %in% lowest_gdppc) %>%
+  ggplot(mapping = aes(group = country, color = country)) +
+  geom_line(mapping = aes(year, lifeExp)) #+
+  #theme(legend.position="none")
+
+grid.arrange(plot1, plot2, plot3, plot4, nrow = 2)
+```
+
+**Observations**:
+
+- There are clearer trends among the richest countries than the poorest.
+  - Generally the richest countries gained GDP per capita and life expectancy over time, with what look like vaguely linear curves for the most part, although Kuwait followed a more interesting path on both factors but ended up in a similar range to the other richest countries in both.
+  - The poorest countries don't show as clear an upward trend on either graph, with most countries' GDP per capita staying close to the same or spiking up and ending a bit lower. In terms of life expectancy, there is still a trend upward over time, showing that some increase is possible without gaining wealth (through technology advancement and access, perhaps). Zimbabwe shows an interesting pattern in life expectancy dropping steeply from 1987-2000, that I'd want to research a bit to understand based on events in that country.
+
+```{r q5-task3Extras}
+# Some other ways I experimented with viewing the data but didn't find as useful.
+# Left here as a reference, mainly for myself :P
+
+# gapminder %>%
+#   filter(as.integer(year) >= as.integer(year_max) - 25) %>%
+#   filter((country %in% highest_gdppc) | (country %in% lowest_gdppc)) %>%
+#   ggplot(aes(x = gdpPercap, y = lifeExp, color = country)) +
+#   geom_point() +
+#   facet_wrap(~ year)
+# 
+# gapminder_scale_by_ctry <-
+#   gapminder %>%
+#   group_by(country) %>%
+#   mutate(
+#     country_median_gdppc = median(gdpPercap),
+#     country_median_le = median(lifeExp)
+#   ) %>%
+#   ungroup()
+# 
+# gapminder_scale_by_ctry %>%
+#   filter((country %in% highest_gdppc) | (country %in% lowest_gdppc)) %>%
+#   ggplot(mapping = aes(group = country, color = country)) +
+#   geom_line(mapping = aes(year, gdpPercap/country_median_gdppc))
+# 
+# gapminder_scale_by_ctry %>%
+#   filter((country %in% highest_gdppc) | (country %in% lowest_gdppc)) %>%
+#   ggplot(mapping = aes(group = country, color = country)) +
+#   geom_line(mapping = aes(year, lifeExp/country_median_le))
+```
